@@ -38,17 +38,24 @@ p_succ   = TSucc   <$> keyword "succ"
 p_pred   = TPred   <$> keyword "pred"
 p_iszero = TIsZero <$> keyword "iszero"
 
--- A term can be preceeded by spaces and followed by spaces or EOF.
-p_term = spaces *> (choice $ map try
-                    [ p_if
-                    , p_true
-                    , p_zero
-                    , p_succ
-                    , p_pred
-                    , p_false
-                    , p_iszero
-                    ])
-                <* (spaces <|> eof)
+-- A term can be preceeded and followed by spaces.  A term with all
+-- spaces stripped is either one of "if", "succ", "pred", "iszero",
+-- "true", "false", "0" constructs, or it is a term enclosed in
+-- parenthesis.
+p_term = spaces *> (p_term' <|> parens p_term) <* spaces
+    where p_term' = (choice $ map try
+                     [ p_if
+                     , p_true
+                     , p_zero
+                     , p_succ
+                     , p_pred
+                     , p_false
+                     , p_iszero
+                     ])
+          parens  = between (char '(') (char ')')
+
+-- A program is a term followed by EOF.
+p_program = p_term <* eof
 
 -- Evaluator
 
@@ -109,7 +116,7 @@ ppTerm t = case toInt t of
 main = do
   putStr "> "
   input <- getLine
-  case parse p_term "(stdin)" input of
+  case parse p_program "(stdin)" input of
     Left err -> print err
     Right  t -> putStrLn . ppTerm $ eval t
   main
