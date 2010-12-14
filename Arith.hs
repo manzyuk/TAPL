@@ -38,20 +38,25 @@ p_succ   = TSucc   <$> keyword "succ"
 p_pred   = TPred   <$> keyword "pred"
 p_iszero = TIsZero <$> keyword "iszero"
 
+
+-- The following (admittedly, ugly) hack removes the need for backtracking, and
+-- simultaneoursly improves error messages.
+p_if_iszero = char 'i' >> (p_f <|> p_szero)
+    where p_f     = liftA3 TIf (keyword "f") (keyword "then") (keyword "else")
+          p_szero = TIsZero <$> keyword "szero"
+
 -- A term can be preceeded and followed by spaces.  A term with all
 -- spaces stripped is either one of "if", "succ", "pred", "iszero",
 -- "true", "false", "0" constructs, or it is a term enclosed in
 -- parenthesis.
 p_term = spaces *> (p_term' <|> parens p_term) <* spaces
-    where p_term' = (choice $ map try
-                     [ p_if
-                     , p_true
-                     , p_zero
-                     , p_succ
-                     , p_pred
-                     , p_false
-                     , p_iszero
-                     ])
+    where p_term' = choice [ p_if_iszero
+                           , p_false
+                           , p_true
+                           , p_zero
+                           , p_succ
+                           , p_pred
+                           ] <?> "term"
           parens  = between (char '(') (char ')')
 
 -- A program is a term followed by EOF.
