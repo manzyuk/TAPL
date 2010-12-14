@@ -20,44 +20,54 @@ data Term = TTrue
           | TIsZero Term
             deriving (Eq, Show)
 
+-- Lexer
+
+type Token = (SourcePos, String)
+type TermParser a = GenParser Token () a
+
+scanner :: String -> Either ParseError [Token]
+scanner = parse toks "(stdin)"
+
+tok  = liftA2 (,) getPosition (many1 alphaNum <|> string "(" <|> string ")")
+toks = spaces *> many (tok <* spaces) <* eof
+
 -- Parser
 
+symb :: String -> TermParser String
+symb sym = (token showToken posToken testToken) <?> show sym
+    where
+      showToken (pos, tok) = show tok
+      posToken  (pos, tok) = pos
+      testToken (pos, tok) = if tok == sym then Just tok else Nothing
+
 -- Return a parser that parses a literal constant matching pat and returns val.
-constant pat val = string pat >> return val
+constant pat val = symb pat >> return val
 
 p_zero  = constant "0"     TZero
 p_true  = constant "true"  TTrue
 p_false = constant "false" TFalse
 
--- Return a parser that parses a keyword matching pat followed by a space and a
--- term, and returns the parsed term.
-keyword pat = string pat >> space *> p_term
+-- Return a parser that parses a keyword matching pat followed by a term and
+-- returns the parsed term.
+keyword pat = symb pat >> p_term
 
 p_if     = liftA3 TIf (keyword "if") (keyword "then") (keyword "else")
 p_succ   = TSucc   <$> keyword "succ"
 p_pred   = TPred   <$> keyword "pred"
 p_iszero = TIsZero <$> keyword "iszero"
 
-
--- The following (admittedly, ugly) hack removes the need for backtracking, and
--- simultaneoursly improves error messages.
-p_if_iszero = char 'i' >> (p_f <|> p_szero)
-    where p_f     = liftA3 TIf (keyword "f") (keyword "then") (keyword "else")
-          p_szero = TIsZero <$> keyword "szero"
-
--- A term can be preceeded and followed by spaces.  A term with all
--- spaces stripped is either one of "if", "succ", "pred", "iszero",
--- "true", "false", "0" constructs, or it is a term enclosed in
--- parenthesis.
-p_term = spaces *> (p_term' <|> parens p_term) <* spaces
-    where p_term' = choice [ p_if_iszero
+-- A term is either one of "if", "succ", "pred", "iszero", "true", "false",
+-- "0" constructs, or it is a term enclosed in parenthesis.
+p_term = p_term' <|> parens p_term
+    where p_term' = choice [ p_iszero
                            , p_false
                            , p_true
                            , p_zero
                            , p_succ
                            , p_pred
-                           ] <?> "term"
-          parens  = between (char '(') (char ')')
+                           , p_if
+                           ]
+          parens  = between (symb "(") (symb ")")
 
 -- A program is a term followed by EOF.
 p_program = p_term <* eof
@@ -68,6 +78,7 @@ p_program = p_term <* eof
 isNumericVal :: Term -> Bool
 isNumericVal TZero     = True
 isNumericVal (TSucc t) = isNumericVal t
+isNumericVal _         = False
 
 -- Check whether a term is a value.
 isVal :: Term -> Bool
@@ -111,17 +122,21 @@ ppTerm t = case toInt t of
       show' TZero       = "0"
       show' TTrue       = "true"
       show' TFalse      = "false"
-      show' (TSucc t)   = "succ " ++ show t
-      show' (TPred t)   = "pred " ++ show t
-      show' (TIsZero t) = "iszero " ++ show t
-      show' (TIf t c a) = "if " ++ show t ++ " then " ++ show c ++ " else " ++ show a
+      show' (TSucc t)   = "succ " ++ show' t
+      show' (TPred t)   = "pred " ++ show' t
+      show' (TIsZero t) = "iszero " ++ show' t
+      show' (TIf t c a) = "if " ++ show' t ++ " then " ++ show' c ++ " else " ++ show' a
 
 -- Interpreter
 
 main = do
   putStr "> "
   input <- getLine
-  case parse p_program "(stdin)" input of
-    Left err -> print err
-    Right  t -> putStrLn . ppTerm $ eval t
+  case scanner input of
+    Left  err  -> putStrLn "Parse error:" >> print err
+    Right toks -> case toks of
+                    []      -> return ()
+                    (tok:_) -> case parse ((setPosition . fst $ tok) >> p_program) "" toks of
+                                 Left err -> putStrLn "Parse error:" >> print err
+                                 Right  t -> putStrLn . ppTerm $ eval t
   main
