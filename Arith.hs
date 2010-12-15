@@ -23,34 +23,36 @@ data Term = TTrue
 -- Lexer
 
 type Token = (SourcePos, String)
-type TermParser a = GenParser Token () a
 
-scanner :: String -> Either ParseError [Token]
-scanner = parse toks "(stdin)"
+-- Split the source string into a list of tokens stripping all the whitespace.
+scan :: String -> Either ParseError [Token]
+scan = parse toks "(stdin)"
 
+-- A token is either a non-empty sequence of alphanumeric chars or one of the
+-- parens (,), paired with its position in the source string.
 tok  = liftA2 (,) getPosition (many1 alphaNum <|> string "(" <|> string ")")
 toks = spaces *> many (tok <* spaces) <* eof
 
 -- Parser
 
-symb :: String -> TermParser String
+-- Analogous to 'char', but for streams of Tokens instead of streams of chars.
+symb :: String -> GenParser Token () String
 symb sym = (token showToken posToken testToken) <?> show sym
     where
       showToken (pos, tok) = show tok
       posToken  (pos, tok) = pos
       testToken (pos, tok) = if tok == sym then Just tok else Nothing
 
--- Return a parser that parses a literal constant matching pat and returns val.
-constant pat val = symb pat >> return val
+-- Constants
+p_zero  = TZero  <$ symb "0"
+p_true  = TTrue  <$ symb "true"
+p_false = TFalse <$ symb "false"
 
-p_zero  = constant "0"     TZero
-p_true  = constant "true"  TTrue
-p_false = constant "false" TFalse
+-- Return a parser that parses a symbol key followed by a term and returns
+-- the parsed term.
+keyword key = symb key >> p_term
 
--- Return a parser that parses a keyword matching pat followed by a term and
--- returns the parsed term.
-keyword pat = symb pat >> p_term
-
+-- Statements
 p_if     = liftA3 TIf (keyword "if") (keyword "then") (keyword "else")
 p_succ   = TSucc   <$> keyword "succ"
 p_pred   = TPred   <$> keyword "pred"
@@ -58,16 +60,14 @@ p_iszero = TIsZero <$> keyword "iszero"
 
 -- A term is either one of "if", "succ", "pred", "iszero", "true", "false",
 -- "0" constructs, or it is a term enclosed in parenthesis.
-p_term = p_term' <|> parens p_term
-    where p_term' = choice [ p_iszero
-                           , p_false
-                           , p_true
-                           , p_zero
-                           , p_succ
-                           , p_pred
-                           , p_if
-                           ]
-          parens  = between (symb "(") (symb ")")
+p_term = choice [ p_iszero
+                , p_false
+                , p_true
+                , p_zero
+                , p_succ
+                , p_pred
+                , p_if
+                ] <|> between (symb "(") (symb ")") p_term
 
 -- A program is a term followed by EOF.
 p_program = p_term <* eof
@@ -107,14 +107,14 @@ evalOne _                                    = Nothing
 eval :: Term -> Term
 eval t = fromMaybe t (eval <$> evalOne t)
 
--- Convert a numeric value into an integer, and return Just that integer or
--- Nothing otherwise.
+-- Convert a numeric value into an integer and return Just that integer, or
+-- return Nothing otherwise.
 toInt :: Term -> Maybe Int
 toInt TZero                      = Just 0
 toInt (TSucc t) | isNumericVal t = succ <$> toInt t
 toInt _                          = Nothing
 
--- Pretty-print a term.  If it is a numeric value replace it with its value.
+-- Pretty-print a term.  Replace "numeric values" with their actual values.
 ppTerm t = case toInt t of
              Just n  -> show  n
              Nothing -> show' t
@@ -132,11 +132,15 @@ ppTerm t = case toInt t of
 main = do
   putStr "> "
   input <- getLine
-  case scanner input of
+  case scan input of
     Left  err  -> putStrLn "Parse error:" >> print err
     Right toks -> case toks of
                     []      -> return ()
+                    -- In the call to 'parse' below we need to reset the initial position,
+                    -- which is (line 1, column 1), to the position of the first token (in
+                    -- the input).  Otherwise if the first token causes a parse error, the
+                    -- location of the error won't be reported correctly.
                     (tok:_) -> case parse ((setPosition . fst $ tok) >> p_program) "" toks of
-                                 Left err -> putStrLn "Parse error:" >> print err
-                                 Right  t -> putStrLn . ppTerm $ eval t
+                                 Left  err  -> putStrLn "Parse error:" >> print err
+                                 Right term -> putStrLn . ppTerm $ eval term
   main
