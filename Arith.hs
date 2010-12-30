@@ -1,15 +1,6 @@
 import Text.ParserCombinators.Parsec hiding (many, optional, (<|>))
 import Control.Applicative
-import Control.Monad (MonadPlus(..), ap)
 import Maybe (fromMaybe)
-
-instance Applicative (GenParser s a) where
-    pure = return
-    (<*>) = ap
-
-instance Alternative (GenParser s a) where
-    empty = mzero
-    (<|>) = mplus
 
 data Term = TTrue
           | TFalse

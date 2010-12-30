@@ -1,17 +1,8 @@
 import Text.ParserCombinators.Parsec hiding (many, optional, (<|>))
 import Control.Applicative
-import Control.Monad (MonadPlus(..), ap)
 import Data.Char (isAlpha)
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
-
-instance Applicative (GenParser s a) where
-    pure = return
-    (<*>) = ap
-
-instance Alternative (GenParser s a) where
-    empty = mzero
-    (<|>) = mplus
 
 type Identifier = String
 
