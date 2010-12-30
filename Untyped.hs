@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleInstances #-}
 import Text.ParserCombinators.Parsec hiding (many, optional, (<|>))
 import Control.Applicative
 import Control.Monad (MonadPlus(..), ap)
@@ -28,11 +27,12 @@ type Token = (SourcePos, String)
 scan :: String -> Either ParseError [Token]
 scan = parse toks "(stdin)"
 
-tok  = liftA2 (,) getPosition (many1 letter
-                               <|> string "("
-                               <|> string ")"
-                               <|> string "."
-                               <|> string "\\")
+tok  = liftA2 (,) getPosition $ choice [ many1 letter
+                                       , string "("
+                                       , string ")"
+                                       , string "."
+                                       , string "\\"
+                                       ]
 
 toks = spaces *> many (tok <* spaces) <* eof
 
@@ -93,8 +93,8 @@ freshVar v e s
     = if v `Set.member` usedVars
       then head $ dropWhile (`Set.member` usedVars) identifiers
       else v
-    where usedVars = Set.unions [ freeVars (s v) |
-                                  v <- Set.toList . Set.delete v . freeVars $ e]
+    where usedVars = Set.unions [ freeVars (s w) |
+                                  w <- Set.toList . Set.delete v . freeVars $ e]
 
 substitute :: Term -> Substitution -> Term
 substitute (Var v) s     = s v
