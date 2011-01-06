@@ -3,6 +3,8 @@ import Control.Applicative
 import Data.Char (isAlpha)
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
+import Control.Monad (forever)
+import System.IO
 
 type Name = String
 
@@ -111,14 +113,21 @@ ppTerm (App e e') = (pp e) ++ " " ++ (pp e')
 
 -- Interpreter
 
+prompt :: String
+prompt = "> "
+
 main = do
-  putStr "> "
-  input <- getLine
-  case scan input of
-    Left  err  -> putStrLn "Parse error:" >> print err
-    Right toks -> case toks of
-                    []      -> return ()
-                    (tok:_) -> case parse ((setPosition . fst $ tok) >> p_program) "" toks of
-                                 Left  err  -> putStrLn "Parse error:" >> print err
-                                 Right term -> putStrLn . ppTerm $ eval term
-  main
+  hSetBuffering stdin  NoBuffering
+  hSetBuffering stdout NoBuffering
+  forever repl
+    where
+      repl = do
+        putStr prompt
+        input <- getLine
+        case scan input of
+          Left  err  -> putStrLn "Parse error:" >> print err
+          Right toks -> case toks of
+                          []      -> return ()
+                          (tok:_) -> case parse ((setPosition . fst $ tok) >> p_program) "" toks of
+                                       Left  err  -> putStrLn "Parse error:" >> print err
+                                       Right term -> putStrLn . ppTerm $ eval term

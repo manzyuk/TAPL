@@ -1,6 +1,8 @@
 import Text.ParserCombinators.Parsec hiding (many, optional, (<|>))
 import Control.Applicative
 import Maybe (fromMaybe)
+import Control.Monad (forever)
+import System.IO
 
 data Term = TTrue
           | TFalse
@@ -120,18 +122,25 @@ ppTerm t = case toInt t of
 
 -- Interpreter
 
+prompt :: String
+prompt = "> "
+
 main = do
-  putStr "> "
-  input <- getLine
-  case scan input of
-    Left  err  -> putStrLn "Parse error:" >> print err
-    Right toks -> case toks of
-                    []      -> return ()
-                    -- In the call to 'parse' below we need to reset the initial position,
-                    -- which is (line 1, column 1), to the position of the first token (in
-                    -- the input).  Otherwise if the first token causes a parse error, the
-                    -- location of the error won't be reported correctly.
-                    (tok:_) -> case parse ((setPosition . fst $ tok) >> p_program) "" toks of
-                                 Left  err  -> putStrLn "Parse error:" >> print err
-                                 Right term -> putStrLn . ppTerm $ eval term
-  main
+  hSetBuffering stdin  NoBuffering
+  hSetBuffering stdout NoBuffering
+  forever repl
+    where
+      repl = do
+        putStr prompt
+        input <- getLine
+        case scan input of
+          Left  err  -> putStrLn "Parse error:" >> print err
+          Right toks -> case toks of
+                          []      -> return ()
+                          -- In the call to 'parse' below we need to reset the initial position,
+                          -- which is (line 1, column 1), to the position of the first token (in
+                          -- the input).  Otherwise if the first token causes a parse error, the
+                          -- location of the error won't be reported correctly.
+                          (tok:_) -> case parse ((setPosition . fst $ tok) >> p_program) "" toks of
+                                       Left  err  -> putStrLn "Parse error:" >> print err
+                                       Right term -> putStrLn . ppTerm $ eval term
