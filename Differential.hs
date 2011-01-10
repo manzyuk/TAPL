@@ -23,10 +23,22 @@ type Name = String
 -- purposes taking numbers to be Double is enough.
 type Ring = Double
 
+-- Primitive functions.
+data Func = Exp
+          | Sin
+          | Cos
+            deriving (Show, Eq)
+
+app :: Func -> Ring -> Ring
+app Exp = exp
+app Sin = sin
+app Cos = cos
+
 -- Instead of making the set of terms into a module over the numbers,
 -- let us add numbers as first-class objects to the language.
 data Term = Var Name
           | Num Ring
+          | Pri Func
           | Abs Name Term
           | App Term Term
           | Dif Term Term
@@ -46,6 +58,9 @@ evalOne (Abs v (Mul s r@(Num _))) = Just $ Mul (Abs v s) r
 -- beta-reduction
 evalOne (App (Abs v s) t)         = Just $ substitute s (extend Var v t)
 
+-- application of primitive functions
+evalOne (App (Pri f) (Num x))     = Just . Num $ app f x
+
 -- linearity of application with respect to the first argument
 evalOne (App (Add s1 s2) t)       = Just $ Add (App s1 t) (App s2 t)
 evalOne (App (Mul r@(Num _) s) t) = Just $ Mul r (App s t)
@@ -57,6 +72,11 @@ evalOne (App s t)                 = (`App` t) <$> evalOne s
 evalOne (Dif (Abs v s) u)         = Just $ Abs v' (partial v s' u)
     where v' = freshName v (freeVars u)
           s' = substitute s $ extend Var v (Var v')
+
+-- differentiation of primitive functions
+evalOne (Dif (Pri Exp) u)         = Just $ dif Exp u
+evalOne (Dif (Pri Sin) u)         = Just $ dif Cos u
+evalOne (Dif (Pri Cos) u)         = Just $ dif Sin (neg u)
 
 -- linearity of differentiation in both arguments
 evalOne (Dif (Add s1 s2) u)       = Just $ Add (Dif s1 u) (Dif s2 u)
@@ -84,6 +104,13 @@ evalOne _                         = Nothing
 
 eval :: Term -> Term
 eval t = fromMaybe t (eval <$> evalOne t)
+
+dif :: Func -> Term -> Term
+dif f u = Abs x (Mul (App (Pri f) (Var x)) u)
+    where x = freshName "x" (freeVars u)
+
+neg :: Term -> Term
+neg = Mul (Num (-1))
 
 -- Example:
 --
@@ -129,12 +156,16 @@ evalOne' = tryEach . map trap $
            , \ (Abs v (Mul r@(Num _) s)) -> Just $ Mul r (Abs v s)
            , \ (Abs v (Mul s r@(Num _))) -> Just $ Mul (Abs v s) r
            , \ (App (Abs v s) t)         -> Just $ substitute s (extend Var v t)
+           , \ (App (Pri f) (Num x))     -> Just . Num $ app f x
            , \ (App (Add s1 s2) t)       -> Just $ Add (App s1 t) (App s2 t)
            , \ (App (Mul r@(Num _) s) t) -> Just $ Mul r (App s t)
            , \ (App (Mul s r@(Num _)) t) -> Just $ Mul (App s t) r
            , \ (Dif (Abs v s) u)         -> let v' = freshName v (freeVars u)
                                                 s' = substitute s $ extend Var v (Var v')
                                             in Just $ Abs v' (partial v s' u)
+           , \ (Dif (Pri Exp) u)         -> Just $ dif Exp u
+           , \ (Dif (Pri Sin) u)         -> Just $ dif Cos u
+           , \ (Dif (Pri Cos) u)         -> Just $ dif Sin (neg u)
            , \ (Dif (Add s1 s2) u)       -> Just $ Add (Dif s1 u) (Dif s2 u)
            , \ (Dif s (Add u1 u2))       -> Just $ Add (Dif s u1) (Dif s u2)
            , \ (Dif (Mul r@(Num _) s) u) -> Just $ Mul r (Dif s u)
@@ -164,7 +195,8 @@ eval' t = fromMaybe t (eval' <$> evalOne' t)
 
 freeVars :: Term -> Set.Set Name
 freeVars (Var v)   = Set.singleton v
-freeVars (Num n)   = Set.empty
+freeVars (Num _)   = Set.empty
+freeVars (Pri _)   = Set.empty
 freeVars (Abs v s) = Set.delete v (freeVars s)
 freeVars (App s t) = (freeVars s) `Set.union` (freeVars t)
 freeVars (Dif s t) = (freeVars s) `Set.union` (freeVars t)
@@ -194,6 +226,7 @@ freshName n s | n `Set.member` s = head $ dropWhile (`Set.member` s) names
 substitute :: Term -> Substitution -> Term
 substitute (Var v) d     = d v
 substitute t@(Num _) _   = t
+substitute t@(Pri _) _   = t
 substitute (Abs v e) d   = Abs v' (substitute e d')
     where vs = Set.unions [ freeVars (d w) |
                             w <- Set.toList . Set.delete v . freeVars $ e]
@@ -209,6 +242,7 @@ partial x (Var y) u
     | x == y    = u
     | otherwise = Num 0
 partial _ (Num _) _   = Num 0
+partial _ (Pri _) _   = Abs "x" (Num 0)
 partial x (Abs y s) u = Abs y' (partial x s' u)
     where y' = freshName y (Set.singleton x)
           s' = substitute s $ extend Var y (Var y')
