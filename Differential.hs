@@ -266,7 +266,7 @@ partial x (Mul s t) u = Add (Mul (partial x s u) t) (Mul s (partial x t u))
 
 -- Lexer
 
-languageDef = L.emptyDef { L.reservedNames = ["+", "*", "lambda", "derive"] }
+languageDef = L.emptyDef { L.reservedNames = ["+", "*", "lambda", "derive", "exp", "sin", "cos"] }
 
 lexer = T.makeTokenParser languageDef
 
@@ -279,6 +279,11 @@ naturalOrFloat = T.naturalOrFloat lexer
 
 p_var = Var <$> identifier
 p_num = (Num . either fromInteger id) <$> naturalOrFloat
+p_pri = Pri <$> (choice . map pri $ [ (Exp, "exp")
+                                    , (Sin, "sin")
+                                    , (Cos, "cos")
+                                    ])
+    where pri (c, s) = c <$ reserved s
 
 form c r p1 p2 = (maybe (return ()) reserved r) *> liftA2 c p1 p2
 
@@ -290,6 +295,7 @@ p_app = form App Nothing         p_term     p_term
 
 p_term = choice ([ p_var
                  , p_num
+                 , p_pri
                  ]
                  ++
                  map (try . parens)
@@ -303,8 +309,11 @@ p_term = choice ([ p_var
 p_program = p_term <* eof
 
 ppTerm :: Term -> String
-ppTerm (Var v) = v
-ppTerm (Num n) = show n
+ppTerm (Var v)   = v
+ppTerm (Num n)   = show n
+ppTerm (Pri Exp) = "exp"
+ppTerm (Pri Sin) = "sin"
+ppTerm (Pri Cos) = "cos"
 ppTerm (Abs v s) = list [ "lambda"
                         , v
                         , ppTerm s
