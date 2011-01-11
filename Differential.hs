@@ -16,6 +16,7 @@ import Text.ParserCombinators.Parsec hiding (many, optional, (<|>))
 import qualified Text.ParserCombinators.Parsec.Token    as T
 import qualified Text.ParserCombinators.Parsec.Language as L
 import Control.Applicative
+import Data.List (intercalate)
 
 import Control.Monad (forever)
 import System.IO
@@ -268,7 +269,31 @@ p_term = choice ([ p_var
 p_program = p_term <* eof
 
 ppTerm :: Term -> String
-ppTerm = show
+ppTerm (Var v) = v
+ppTerm (Num n) = show n
+ppTerm (Abs v s) = list [ "lambda"
+                        , v
+                        , ppTerm s
+                        ]
+ppTerm (App s t) = list [ ppTerm s
+                        , ppTerm t
+                        ]
+ppTerm (Dif s t) = list [ "derive"
+                        , ppTerm s
+                        , ppTerm t
+                        ]
+ppTerm (Add s t) = list [ "+"
+                        , ppTerm s
+                        , ppTerm t
+                        ]
+ppTerm (Mul s t) = list [ "*"
+                        , ppTerm s
+                        , ppTerm t
+                        ]
+
+list :: [String] -> String
+list = wrap . intercalate " "
+    where wrap text = "(" ++ text ++ ")"
 
 -- Interpreter
 
