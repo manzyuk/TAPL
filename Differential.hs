@@ -282,7 +282,7 @@ p_num = (Num . either fromInteger id) <$> naturalOrFloat
 p_pri = Pri <$> (choice . map pri $ [ (Exp, "exp")
                                     , (Sin, "sin")
                                     , (Cos, "cos")
-                                    ])
+                                    ]) <?> "primitive"
     where pri (c, s) = c <$ reserved s
 
 form c r p1 p2 = (maybe (return ()) reserved r) *> liftA2 c p1 p2
@@ -293,18 +293,17 @@ p_add = form Add (Just "+")      p_term     p_term
 p_mul = form Mul (Just "*")      p_term     p_term
 p_app = form App Nothing         p_term     p_term
 
-p_term = choice ([ p_var
-                 , p_num
-                 , p_pri
-                 ]
-                 ++
-                 map (try . parens)
-                 [ p_abs
-                 , p_app
-                 , p_dif
-                 , p_add
-                 , p_mul
-                 ])
+p_term = atom <|> (parens list <?> "list")
+    where atom = choice [ p_var
+                        , p_num
+                        , p_pri
+                        ]
+          list = choice [ p_abs
+                        , p_app
+                        , p_dif
+                        , p_add
+                        , p_mul
+                        ]
 
 p_program = p_term <* eof
 
