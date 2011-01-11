@@ -12,9 +12,19 @@ import Control.Applicative
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 
+import Text.ParserCombinators.Parsec hiding (many, optional, (<|>))
+import qualified Text.ParserCombinators.Parsec.Token    as T
+import qualified Text.ParserCombinators.Parsec.Language as L
+import Control.Applicative
+import Data.List (intercalate)
+
+import Control.Monad (forever)
+import System.IO
+
 -- For experimental stuff only.
 import System.IO.Unsafe
-import Control.Exception
+import qualified Control.Exception as E
+
 
 type Name = String
 
@@ -119,7 +129,10 @@ tryEach fs x = foldr ((<|>) . ($ x)) Nothing fs
 -- rules as lambdas, but I don't want to explicitly handle the case
 -- when the pattern does not match.
 trap :: (a -> Maybe a) -> a -> Maybe a
-trap f = unsafePerformIO . handle (\ (_ :: PatternMatchFail) -> return Nothing) . evaluate . f
+trap f = unsafePerformIO
+       . E.handle (\ (_ :: E.PatternMatchFail) -> return Nothing)
+       . E.evaluate
+       . f
 
 -- Using trap is subtle due to laziness (an exception may be thrown
 -- at the point where no handler is available).  For example, you
@@ -216,3 +229,85 @@ partial x (App s t) u = Add (App (partial x s u) t) (App (Dif s (partial x t u))
 partial x (Dif s t) u = Add (Dif (partial x s u) t) (Dif s (partial x t u))
 partial x (Add s t) u = Add (partial x s u) (partial x t u)
 partial x (Mul s t) u = Add (Mul (partial x s u) t) (Mul s (partial x t u))
+
+-- Lexer
+
+languageDef = L.emptyDef { L.reservedNames = ["+", "*", "lambda", "derive"] }
+
+lexer = T.makeTokenParser languageDef
+
+parens         = T.parens lexer
+reserved       = T.reserved lexer
+identifier     = T.identifier lexer
+naturalOrFloat = T.naturalOrFloat lexer
+
+-- Parser
+
+p_var = Var <$> identifier
+p_num = (Num . either fromInteger id) <$> naturalOrFloat
+
+form c r p1 p2 = (maybe (return ()) reserved r) *> liftA2 c p1 p2
+
+p_abs = form Abs (Just "lambda") identifier p_term
+p_dif = form Dif (Just "derive") p_term     p_term
+p_add = form Add (Just "+")      p_term     p_term
+p_mul = form Mul (Just "*")      p_term     p_term
+p_app = form App Nothing         p_term     p_term
+
+p_term = choice ([ p_var
+                 , p_num
+                 ]
+                 ++
+                 map (try . parens)
+                 [ p_abs
+                 , p_app
+                 , p_dif
+                 , p_add
+                 , p_mul
+                 ])
+
+p_program = p_term <* eof
+
+ppTerm :: Term -> String
+ppTerm (Var v) = v
+ppTerm (Num n) = show n
+ppTerm (Abs v s) = list [ "lambda"
+                        , v
+                        , ppTerm s
+                        ]
+ppTerm (App s t) = list [ ppTerm s
+                        , ppTerm t
+                        ]
+ppTerm (Dif s t) = list [ "derive"
+                        , ppTerm s
+                        , ppTerm t
+                        ]
+ppTerm (Add s t) = list [ "+"
+                        , ppTerm s
+                        , ppTerm t
+                        ]
+ppTerm (Mul s t) = list [ "*"
+                        , ppTerm s
+                        , ppTerm t
+                        ]
+
+list :: [String] -> String
+list = wrap . intercalate " "
+    where wrap text = "(" ++ text ++ ")"
+
+-- Interpreter
+
+prompt :: String
+prompt = "> "
+
+main = do
+  hSetBuffering stdin  NoBuffering
+  hSetBuffering stdout NoBuffering
+  forever repl
+    where
+      repl = do
+        putStr prompt
+        input <- getLine
+        case parse p_program "(stdin)" input of
+          Left  err  -> putStrLn "Parse error:" >> print err
+          Right term -> putStrLn . ppTerm $ eval term
