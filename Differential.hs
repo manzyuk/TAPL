@@ -76,6 +76,9 @@ evalOne (App (Add s1 s2) t)       = Just $ Add (App s1 t) (App s2 t)
 evalOne (App (Mul r@(Num _) s) t) = Just $ Mul r (App s t)
 evalOne (App (Mul s r@(Num _)) t) = Just $ Mul (App s t) r
 
+-- pun a number with a function that multiplies its argument with that number
+evalOne (App (Num n) t)           = Just $ Mul (Num n) t
+
 evalOne (App s t)                 = (`App` t) <$> evalOne s
 
 -- reduction rule for differentiation
@@ -173,6 +176,7 @@ evalOne' = tryEach . map trap $
            , \ (App (Add s1 s2) t)       -> Just $ Add (App s1 t) (App s2 t)
            , \ (App (Mul r@(Num _) s) t) -> Just $ Mul r (App s t)
            , \ (App (Mul s r@(Num _)) t) -> Just $ Mul (App s t) r
+           , \ (App (Num n) t)           -> Just $ Mul (Num n) t
            , \ (Dif (Abs v s) u)         -> let v' = freshName v (freeVars u)
                                                 s' = substitute s $ extend Var v (Var v')
                                             in Just $ Abs v' (partial v s' u)
@@ -255,7 +259,7 @@ partial x (Var y) u
     | x == y    = u
     | otherwise = Num 0
 partial _ (Num _) _   = Num 0
-partial _ (Pri _) _   = Abs "x" (Num 0)
+partial _ (Pri _) _   = Num 0
 partial x (Abs y s) u = Abs y' (partial x s' u)
     where y' = freshName y (Set.singleton x)
           s' = substitute s $ extend Var y (Var y')
