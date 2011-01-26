@@ -222,7 +222,7 @@ freeVars (Mul s t) = (freeVars s) `Set.union` (freeVars t)
 type Substitution = Name -> Term
 
 extend :: Substitution -> Name -> Term -> Substitution
-extend d v t = \u -> if u == v then t else d u
+extend d v t u = if u == v then t else d u
 
 -- Return the successor of a given name (in lexicographical order).
 successor :: Name -> Name
