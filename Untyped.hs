@@ -48,13 +48,8 @@ paren = between (symb "(") (symb ")")
 
 p_var = Var <$> name
 p_abs = liftA2 Abs (symb "\\" *> name <* symb ".") p_term
-p_app = foldl1 App <$> many2 (p_var <|> paren p_term)
-    where many2 p = liftA2 (:) p (many1 p)
 
-p_term = choice [ try p_app
-                , p_abs
-                , p_var
-                ] <|> paren p_term
+p_term = p_abs <|> (foldl1 App <$> many1 (p_var <|> paren p_term))
 
 p_program = p_term <* eof
 
