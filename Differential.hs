@@ -191,8 +191,8 @@ evalOne' = tryEach . map trap $
            , \ (Add (Num n) (Num m))     -> Just $ Num (n + m)
            , \ (Mul (Num 0) _)           -> Just $ Num 0
            , \ (Mul _ (Num 0))           -> Just $ Num 0
-           , \ (Mul (Num 1) t)           -> Just $ t
-           , \ (Mul s (Num 1))           -> Just $ s
+           , \ (Mul (Num 1) t)           -> Just t
+           , \ (Mul s (Num 1))           -> Just s
            , \ (Mul (Num n) (Num m))     -> Just $ Num (n * m)
            , \ (App s t)                 -> (`App` t) <$> evalOne' s
            , \ (App s t)                 -> (s `App`) <$> evalOne' t
