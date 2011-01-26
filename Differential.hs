@@ -102,15 +102,15 @@ evalOne (Dif s u)                 = (`Dif` u) <$> evalOne s
 
 -- basic simplification rules
 evalOne (Add (Num n) (Num m))     = Just $ Num (n + m)
-evalOne (Add s@(Num n) t)         = (s `Add`) <$> (evalOne t)
-evalOne (Add s t)                 = (`Add` t) <$> (evalOne s)
+evalOne (Add s@(Num n) t)         = (s `Add`) <$> evalOne t
+evalOne (Add s t)                 = (`Add` t) <$> evalOne s
 evalOne (Mul (Num 0) _)           = Just $ Num 0
 evalOne (Mul _ (Num 0))           = Just $ Num 0
 evalOne (Mul (Num 1) t)           = Just t
 evalOne (Mul s (Num 1))           = Just s
 evalOne (Mul (Num n) (Num m))     = Just $ Num (n * m)
-evalOne (Mul s@(Num n) t)         = (s `Mul`) <$> (evalOne t)
-evalOne (Mul s t)                 = (`Mul` t) <$> (evalOne s)
+evalOne (Mul s@(Num n) t)         = (s `Mul`) <$> evalOne t
+evalOne (Mul s t)                 = (`Mul` t) <$> evalOne s
 
 evalOne _                         = Nothing
 
