@@ -15,7 +15,6 @@ import qualified Data.Set as Set
 import Text.ParserCombinators.Parsec hiding (many, optional, (<|>))
 import qualified Text.ParserCombinators.Parsec.Token    as T
 import qualified Text.ParserCombinators.Parsec.Language as L
-import Data.List (intercalate)
 
 import Control.Monad (forever)
 import System.IO
@@ -337,7 +336,7 @@ ppTerm (Mul s t) = list [ "*"
                         ]
 
 list :: [String] -> String
-list = wrap . intercalate " "
+list = wrap . unwords
     where wrap text = "(" ++ text ++ ")"
 
 -- Interpreter
