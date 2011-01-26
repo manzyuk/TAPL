@@ -15,7 +15,6 @@ import qualified Data.Set as Set
 import Text.ParserCombinators.Parsec hiding (many, optional, (<|>))
 import qualified Text.ParserCombinators.Parsec.Token    as T
 import qualified Text.ParserCombinators.Parsec.Language as L
-import Control.Applicative
 import Data.List (intercalate)
 
 import Control.Monad (forever)
