@@ -1,6 +1,6 @@
 import Text.ParserCombinators.Parsec hiding (many, optional, (<|>))
 import Control.Applicative
-import Maybe (fromMaybe)
+import Data.Maybe (fromMaybe)
 import Control.Monad (forever)
 import System.IO
 
