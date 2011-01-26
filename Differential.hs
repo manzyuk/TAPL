@@ -228,7 +228,7 @@ extend d v t u = if u == v then t else d u
 successor :: Name -> Name
 successor = reverse . successor' . reverse
     where successor' [] = "A"
-          successor' (c:cs) | c < 'z'   = (succ c) : cs
+          successor' (c:cs) | c < 'z'   = succ c : cs
                             | otherwise = 'A' : successor cs
 
 -- An infinite lexicographically ordered list of names.
